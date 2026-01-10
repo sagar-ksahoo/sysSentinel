@@ -11,4 +11,7 @@ add_compile_options(-Wall -Wextra -Wpedantic)
 include_directories(include)
 
 # Create executable
-add_executable(SysSentinel src/main.cpp)
+add_executable(SysSentinel 
+src/main
+src/monitor.cpp
+)

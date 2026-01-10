@@ -1,14 +1,15 @@
+#include <chrono>
 #include <iostream>
+#include <memory>
 #include <string>
 #include <thread>
 #include <vector>
-#include <memory>
-#include <chrono>
 
-#include "sys_sentinel/queue.h"
-#include "sys_sentinel/logger.h"         
 #include "sys_sentinel/console_logger.h"
 #include "sys_sentinel/file_logger.h"
+#include "sys_sentinel/logger.h"
+#include "sys_sentinel/queue.h"
+#include "sys_sentinel/monitor.h"
 
 int main() {
     std::cout << "SysSentinel: Starting Multi-Threaded Monitoring..." << std::endl;
@@ -27,32 +28,36 @@ int main() {
     // 3. Setup the Thread-Safe Queue
     ThreadSafeQueue<std::string> logQueue;
 
-    // 4. Start Producer Thread (Simulating System Events)
+    // 4. Start Producer Thread (Real System Monitor)
     std::jthread producer([&logQueue]() {
-        const std::vector<std::string> events = {
-            "System boot sequence initiated", 
-            "Loading kernel modules...",
-            "WARNING: Disk space below 10%", 
-            "Network interface eth0 up", 
-            "ERROR: Connection to database timed out",
-            "Retrying connection...",
-            "Connection established",
-            "User 'admin' logged in"
-        };
+        SystemMonitor monitor;
 
-        for (const auto& event : events) {
-            logQueue.push(event);
-            // Simulate variable work time
-            std::this_thread::sleep_for(std::chrono::milliseconds(300));
+        while (true) {
+            SystemMetrics metrics = monitor.getMetrics();
+
+            // Create a formatted log string using C++20 std::format (or string concatenation)
+            // Note: If std::format isn't available yet on your Clang, use basic string building
+            std::string logMsg = "[SYSTEM] CPU: " + std::to_string(metrics.cpuLoad) + "% | " +
+                                 "RAM Usage: " + std::to_string(metrics.memoryUsed / 1024 / 1024) +
+                                 " MB";
+
+            // Simple Logic: Alert if CPU spikes (Simulated threshold for demo)
+            if (metrics.cpuLoad > 10.0) {  // Low threshold just to see it trigger
+                logMsg += " [WARNING: High CPU Load]";
+            }
+
+            logQueue.push(logMsg);
+
+            // Poll every 1 second
+            std::this_thread::sleep_for(std::chrono::seconds(1));
         }
-        logQueue.push("EXIT"); 
     });
 
     // 5. Start Consumer Thread (The Processor)
     std::jthread consumer([&logQueue, &loggerManager]() {
         while (true) {
             std::string logMsg;
-            logQueue.pop(logMsg); // Blocks here until data arrives
+            logQueue.pop(logMsg);  // Blocks here until data arrives
 
             if (logMsg == "EXIT") break;
 
@@ -70,6 +75,7 @@ int main() {
     });
 
     // Main thread waits here until jthreads finish automatically
-    std::cout << "Monitoring active. Press Ctrl+C to force quit or wait for completion." << std::endl;
+    std::cout << "Monitoring active. Press Ctrl+C to force quit or wait for completion."
+              << std::endl;
     return 0;
 }
