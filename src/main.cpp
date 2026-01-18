@@ -8,8 +8,8 @@
 #include "sys_sentinel/console_logger.h"
 #include "sys_sentinel/file_logger.h"
 #include "sys_sentinel/logger.h"
-#include "sys_sentinel/queue.h"
 #include "sys_sentinel/monitor.h"
+#include "sys_sentinel/queue.h"
 
 int main() {
     std::cout << "SysSentinel: Starting Multi-Threaded Monitoring..." << std::endl;
@@ -35,20 +35,25 @@ int main() {
         while (true) {
             SystemMetrics metrics = monitor.getMetrics();
 
-            // Create a formatted log string using C++20 std::format (or string concatenation)
-            // Note: If std::format isn't available yet on your Clang, use basic string building
-            std::string logMsg = "[SYSTEM] CPU: " + std::to_string(metrics.cpuLoad) + "% | " +
-                                 "RAM Usage: " + std::to_string(metrics.memoryUsed / 1024 / 1024) +
-                                 " MB";
+            // Convert raw bytes to GB for readability
+            double ramUsedGB = metrics.memoryUsed / (1024.0 * 1024.0 * 1024.0);
+            double diskFreeGB = metrics.diskFree / (1024.0 * 1024.0 * 1024.0);
+            double diskTotalGB = metrics.diskTotal / (1024.0 * 1024.0 * 1024.0);
+            double diskUsedPercent = 100.0 * (1.0 - (double)metrics.diskFree / metrics.diskTotal);
 
-            // Simple Logic: Alert if CPU spikes (Simulated threshold for demo)
-            if (metrics.cpuLoad > 10.0) {  // Low threshold just to see it trigger
-                logMsg += " [WARNING: High CPU Load]";
+            // Format the log string
+            // "CPU: 12.5% | RAM: 8.5 GB | Disk: 150/500 GB (30% Used)"
+            std::string logMsg = "[SYSTEM] CPU: " + std::to_string(metrics.cpuLoad).substr(0, 4) +
+                                 "% | " + "RAM: " + std::to_string(ramUsedGB).substr(0, 4) +
+                                 " GB | " +
+                                 "Disk Free: " + std::to_string(diskFreeGB).substr(0, 5) + " GB";
+
+            // Add Alert Logic for Disk
+            if (diskUsedPercent > 90.0) {
+                logMsg += " [CRITICAL: Disk Space Low]";
             }
 
             logQueue.push(logMsg);
-
-            // Poll every 1 second
             std::this_thread::sleep_for(std::chrono::seconds(1));
         }
     });
